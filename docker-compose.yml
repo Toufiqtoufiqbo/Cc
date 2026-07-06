@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  traffic-api:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DB_HOST=postgres
+      - REDIS_URL=redis://redis:6379
+      - RABBITMQ_URL=amqp://rabbitmq:5672
+    depends_on:
+      - postgres
+      - redis
+      - rabbitmq
+    networks:
+      - itms-net
+
+  ai-pipeline:
+    image: ultralytics/yolov8:latest
+    volumes:
+      - ./traffic_system_enterprise.py:/app/pipeline.py
+    command: python3 /app/pipeline.py --source rtsp://camera1/stream --api http://traffic-api:3000
+    depends_on:
+      - traffic-api
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    networks:
+      - itms-net
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: itms_user
+      POSTGRES_PASSWORD: enterprise_password
+      POSTGRES_DB: traffic_itms
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - itms-net
+
+  redis:
+    image: redis:7-alpine
+    networks:
+      - itms-net
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    ports:
+      - "15672:15672" # Management UI
+    networks:
+      - itms-net
+
+volumes:
+  pgdata:
+
+networks:
+  itms-net:
+    driver: bridge

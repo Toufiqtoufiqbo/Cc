@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: traffic-api-deployment
+  labels:
+    app: itms-traffic-api
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: itms-traffic-api
+  template:
+    metadata:
+      labels:
+        app: itms-traffic-api
+    spec:
+      containers:
+      - name: traffic-api
+        image: gcr.io/your-project/traffic-api:latest
+        ports:
+        - containerPort: 3000
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: DB_HOST
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: host
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        readinessProbe:
+          httpGet:
+            path: /api/v1/health
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: traffic-api-service
+spec:
+  type: LoadBalancer
+  selector:
+    app: itms-traffic-api
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 3000
